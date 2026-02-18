@@ -1,0 +1,42 @@
+# syntax=docker/dockerfile:1.7
+
+FROM node:20-bookworm AS frontend
+WORKDIR /src
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+FROM golang:1.24.13 AS backend
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY pkg ./pkg
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/gpx_clickhouse_linux_amd64 ./pkg/main.go \
+  && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /out/gpx_clickhouse_linux_arm64 ./pkg/main.go
+
+FROM debian:bookworm-slim AS packager
+WORKDIR /work
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends zip \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY --from=frontend /src/dist ./dist
+COPY --from=backend /out/gpx_clickhouse_linux_amd64 ./dist/gpx_clickhouse_linux_amd64
+COPY --from=backend /out/gpx_clickhouse_linux_arm64 ./dist/gpx_clickhouse_linux_arm64
+
+RUN mkdir -p /artifacts/stage/grafana-clickhouse-datasource \
+  && cp -a ./dist/. /artifacts/stage/grafana-clickhouse-datasource/ \
+  && rm -f /artifacts/stage/grafana-clickhouse-datasource/gpx_clickhouse_linux_arm64 \
+  && (cd /artifacts/stage && zip -r /artifacts/grafana-clickhouse-datasource-linux-amd64.zip grafana-clickhouse-datasource) \
+  && cp -a ./dist/. /artifacts/stage/grafana-clickhouse-datasource/ \
+  && rm -f /artifacts/stage/grafana-clickhouse-datasource/gpx_clickhouse_linux_amd64 \
+  && (cd /artifacts/stage && zip -r /artifacts/grafana-clickhouse-datasource-linux-arm64.zip grafana-clickhouse-datasource)
+
+FROM scratch AS export
+COPY --from=packager /artifacts/ /
