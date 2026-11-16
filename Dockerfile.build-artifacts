@@ -9,7 +9,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM golang:1.25.8 AS backend
+FROM golang:1.26.9 AS backend
 WORKDIR /src
 
 COPY go.mod go.sum ./
