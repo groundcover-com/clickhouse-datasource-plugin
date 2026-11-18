@@ -21,14 +21,13 @@ import (
 	"time"
 
 	clickhouse_sql "github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/go-units"
 	"github.com/elazarl/goproxy"
 	"github.com/grafana/clickhouse-datasource/pkg/converters"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/grafana/grafana-plugin-sdk-go/data/sqlutil"
 	"github.com/grafana/sqlds/v5"
+	"github.com/moby/moby/api/types/container"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,7 +99,7 @@ func TestMain(m *testing.M) {
 		},
 		Image: fmt.Sprintf("clickhouse/clickhouse-server:%s", chVersion),
 		Resources: container.Resources{
-			Ulimits: []*units.Ulimit{
+			Ulimits: []*container.Ulimit{
 				{
 					Name: "nofile",
 					Hard: 262144,
@@ -159,14 +158,35 @@ func TestConnect(t *testing.T) {
 	t.Run("should not error when valid settings passed", func(t *testing.T) {
 		secure := map[string]string{}
 		secure["password"] = password
-		settings := backend.DataSourceInstanceSettings{JSONData: []byte(fmt.Sprintf(`{ "server": "%s", "port": %s, "path": "%s", "username": "%s", "secure": %s, "queryTimeout": "%s"}`, host, port, path, username, ssl, queryTimeoutString)), DecryptedSecureJSONData: secure}
+		settings := backend.DataSourceInstanceSettings{
+			JSONData: []byte(fmt.Sprintf(
+				`{ "server": "%s", "port": %s, "path": "%s", "username": "%s", "secure": %s, "queryTimeout": "%s"}`,
+				host,
+				port,
+				path,
+				username,
+				ssl,
+				queryTimeoutString,
+			)),
+			DecryptedSecureJSONData: secure,
+		}
 		_, err := clickhouse.Connect(ctx, settings, json.RawMessage{})
 		assert.Equal(t, nil, err)
 	})
 	t.Run("should not error when valid settings passed - with query timeout as number", func(t *testing.T) {
 		secure := map[string]string{}
 		secure["password"] = password
-		settings := backend.DataSourceInstanceSettings{JSONData: []byte(fmt.Sprintf(`{ "server": "%s", "port": %s, "username": "%s", "secure": %s, "queryTimeout": %d }`, host, port, username, ssl, queryTimeoutNumber)), DecryptedSecureJSONData: secure}
+		settings := backend.DataSourceInstanceSettings{
+			JSONData: []byte(fmt.Sprintf(
+				`{ "server": "%s", "port": %s, "username": "%s", "secure": %s, "queryTimeout": %d }`,
+				host,
+				port,
+				username,
+				ssl,
+				queryTimeoutNumber,
+			)),
+			DecryptedSecureJSONData: secure,
+		}
 		_, err := clickhouse.Connect(ctx, settings, json.RawMessage{})
 		assert.Equal(t, nil, err)
 	})
@@ -189,7 +209,10 @@ func TestHTTPConnect(t *testing.T) {
 	t.Run("should not error when valid settings passed", func(t *testing.T) {
 		secure := map[string]string{}
 		secure["password"] = password
-		settings := backend.DataSourceInstanceSettings{JSONData: []byte(fmt.Sprintf(`{ "server": "%s", "port": %s, "username": "%s", "secure": %s, "protocol": "http" }`, host, port, username, ssl)), DecryptedSecureJSONData: secure}
+		settings := backend.DataSourceInstanceSettings{
+			JSONData:                []byte(fmt.Sprintf(`{ "server": "%s", "port": %s, "username": "%s", "secure": %s, "protocol": "http" }`, host, port, username, ssl)),
+			DecryptedSecureJSONData: secure,
+		}
 		_, err := clickhouse.Connect(ctx, settings, json.RawMessage{})
 		assert.Equal(t, nil, err)
 	})
@@ -1322,7 +1345,14 @@ func TestHTTPConnectWithHeaders(t *testing.T) {
 		},
 	}
 	t.Run("should not forward http headers", func(t *testing.T) {
-		settings := backend.DataSourceInstanceSettings{JSONData: []byte(fmt.Sprintf(`{"server": "localhost", "port": %s, "username": "%s", "protocol": "http", "forwardGrafanaHeaders": false}`, proxyPort, username)), DecryptedSecureJSONData: secure}
+		settings := backend.DataSourceInstanceSettings{
+			JSONData: []byte(fmt.Sprintf(
+				`{"server": "localhost", "port": %s, "username": "%s", "protocol": "http", "forwardGrafanaHeaders": false}`,
+				proxyPort,
+				username,
+			)),
+			DecryptedSecureJSONData: secure,
+		}
 		proxy.NonproxyHandler = proxyHandlerGenerator(t, map[string]string{"X-Test": ""})
 		dsInstance, err := NewDatasource(ctx, settings)
 		assert.Equal(t, nil, err)
@@ -1339,7 +1369,10 @@ func TestHTTPConnectWithHeaders(t *testing.T) {
 	})
 
 	t.Run("should forward http headers", func(t *testing.T) {
-		settings := backend.DataSourceInstanceSettings{JSONData: []byte(fmt.Sprintf(`{"server": "localhost", "port": %s, "username": "%s", "protocol": "http", "forwardGrafanaHeaders": true}`, proxyPort, username)), DecryptedSecureJSONData: secure}
+		settings := backend.DataSourceInstanceSettings{
+			JSONData:                []byte(fmt.Sprintf(`{"server": "localhost", "port": %s, "username": "%s", "protocol": "http", "forwardGrafanaHeaders": true}`, proxyPort, username)),
+			DecryptedSecureJSONData: secure,
+		}
 		proxy.NonproxyHandler = proxyHandlerGenerator(t, map[string]string{"X-Test": ""})
 		dsInstance, err := NewDatasource(ctx, settings)
 		assert.Equal(t, nil, err)
@@ -1356,7 +1389,14 @@ func TestHTTPConnectWithHeaders(t *testing.T) {
 	})
 
 	t.Run("should forward http headers alongside custom http headers", func(t *testing.T) {
-		settings := backend.DataSourceInstanceSettings{JSONData: []byte(fmt.Sprintf(`{"server": "localhost", "port": %s, "username": "%s", "protocol": "http", "forwardGrafanaHeaders": true, "httpHeaders": [{ "name": "custom-test-header", "value": "value-1", "secure": false}]}`, proxyPort, username)), DecryptedSecureJSONData: secure}
+		settings := backend.DataSourceInstanceSettings{
+			JSONData: []byte(fmt.Sprintf(
+				`{"server": "localhost", "port": %s, "username": "%s", "protocol": "http", "forwardGrafanaHeaders": true, "httpHeaders": [{ "name": "custom-test-header", "value": "value-1", "secure": false}]}`,
+				proxyPort,
+				username,
+			)),
+			DecryptedSecureJSONData: secure,
+		}
 		proxy.NonproxyHandler = proxyHandlerGenerator(t, map[string]string{"custom-test-header": "value-1"})
 		dsInstance, err := NewDatasource(ctx, settings)
 		assert.Equal(t, nil, err)
@@ -1373,7 +1413,14 @@ func TestHTTPConnectWithHeaders(t *testing.T) {
 	})
 
 	t.Run("should override forward headers with custom http headers", func(t *testing.T) {
-		settings := backend.DataSourceInstanceSettings{JSONData: []byte(fmt.Sprintf(`{"server": "localhost", "port": %s, "username": "%s", "protocol": "http", "forwardGrafanaHeaders": true, "httpHeaders": [{ "name": "X-Test", "value": "Override", "secure": false}]}`, proxyPort, username)), DecryptedSecureJSONData: secure}
+		settings := backend.DataSourceInstanceSettings{
+			JSONData: []byte(fmt.Sprintf(
+				`{"server": "localhost", "port": %s, "username": "%s", "protocol": "http", "forwardGrafanaHeaders": true, "httpHeaders": [{ "name": "X-Test", "value": "Override", "secure": false}]}`,
+				proxyPort,
+				username,
+			)),
+			DecryptedSecureJSONData: secure,
+		}
 		proxy.NonproxyHandler = proxyHandlerGenerator(t, map[string]string{"X-Test": "Override"})
 		dsInstance, err := NewDatasource(ctx, settings)
 		assert.Equal(t, nil, err)
