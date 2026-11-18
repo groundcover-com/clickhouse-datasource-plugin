@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.13.1
+
+### Fixes
+
+- Discard native ClickHouse connections after a socket timeout while waiting for the first result block.
+
 ## 4.13.0
 
 ### Features
